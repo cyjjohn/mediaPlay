@@ -17,4 +17,9 @@ public class Payload {
     private String extension;
     @JsonFormat(timezone = "GMT+8",pattern = "yyyy-MM-dd HH:mm:ss")
     private String startTime;
+
+    @Override
+    public String toString() {
+        return String.format("{\"siteID\":\"%s\",\"interactionID\":\"%s\",\"extension\":\"%s\",\"startTime\":\"%s\"}", siteID, interactionID, extension, startTime);
+    }
 }

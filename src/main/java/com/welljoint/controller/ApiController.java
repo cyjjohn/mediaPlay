@@ -196,6 +196,7 @@ public class ApiController {
     @PostMapping({"/wavUrl"})
     @ResponseBody
     public String wavUrl(@RequestBody Payload payload) {
+        log.info(payload.toString());
         String voiceName = gradeService.makeWavFile(payload.getSiteID(), payload.getInteractionID(), payload.getExtension(), DateUtil.parse(payload.getStartTime(), "yyyy-MM-dd HH:mm:ss"));
         return domain + voiceName;
     }
