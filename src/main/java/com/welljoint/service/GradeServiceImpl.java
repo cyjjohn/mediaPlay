@@ -65,7 +65,7 @@ public class GradeServiceImpl implements GradeService {
                 LinkedHashMap<String, String> record = nmfList.get(0);
                 String id = record.get(Record.ID);
                 String pathName = record.get(Record.PATH_NAME);
-                String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + ".mp3"; //最终输出文件完整路径
+                String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + ".wav"; //最终输出文件完整路径
 
                 if (nmfList.size() == 1) {
                     log.info("录音ID:" + id + "共1段,无需拼接");
