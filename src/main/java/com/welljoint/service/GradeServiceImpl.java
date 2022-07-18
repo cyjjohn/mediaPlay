@@ -1,11 +1,12 @@
 package com.welljoint.service;
 
-import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RuntimeUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.db.Db;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.welljoint.CommonUtil;
 import com.welljoint.constant.Record;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,41 +33,54 @@ public class GradeServiceImpl implements GradeService {
     @Value("${proc.name}")
     private String procName;
 
-    @Value("${proc.early.name}")
-    private String procEarlyName;
+    /***
+     * @description
+     * @param jsonStr
+     * @return java.lang.String
+     * @author cyjjohn
+     * @date 2022/7/14 15:12
+     */
+    public String makeWavFile(String jsonStr) {
+        JSONObject jsonObject = JSONUtil.parseObj(jsonStr);
+        String interactionId = jsonObject.getStr("InteractionID");
+        String contactId = jsonObject.getStr("ContactID");
 
-    public String makeWavFile(String siteID, String interactionID, String extension, Date startTime) {
-        String wav = CommonUtil.endsWithBar(wavPath) + interactionID + "mp3";
+        //判断流水号是否存在
+        String wav = "";
+        String id = "";
+        if (StrUtil.isNotBlank(contactId)) {
+            if (StrUtil.isNotBlank(interactionId)) {
+                wav = CommonUtil.endsWithBar(wavPath) + interactionId + Record.MP3_FORMAT;
+                id = interactionId;
+            } else {
+                wav = CommonUtil.endsWithBar(wavPath) + contactId + Record.MP3_FORMAT;
+                id = contactId;
+            }
+        } else {
+            log.error("流水号不存在");
+        }
         boolean exist = FileUtil.exist(wav);
         if (exist) {
-            return wav;
+            return id + Record.MP3_FORMAT;
         }
 
         Connection conn = null;
         try {
             //查询数据库 得到待转码录音列表
-            long minute = DateUtil.between(startTime, new Date(), DateUnit.MINUTE);
-            String db,proc;
-            if (minute <= 60) {
-                db = "db1";
-                proc = procName;
-            } else {
-                db = "db2";
-                proc = procEarlyName;
-            }
-            log.info("库:" + nmfPath);
-            conn = Db.use(db).getConnection();
-            String[] params = {siteID, interactionID, extension, DateUtil.format(startTime, "yyyy-MM-dd HH:mm:ss")};
-            List<Object> result = CommonUtil.getResult(conn, proc, params);
+            conn = Db.use().getConnection();
+            String[] params = {jsonStr};
+            Map<String, Integer> map = new LinkedHashMap<>();
+            map.put("out_Status", Types.INTEGER);
+            map.put("out_Content", Types.VARCHAR);
+            List<Object> result = CommonUtil.getResult(conn, procName, params, map);
             int lastIndex = result.size() - 1; //查询结果集固定在最后，前面为出参
             List<LinkedHashMap<String, String>> nmfList = (List<LinkedHashMap<String, String>>) result.get(lastIndex);
             log.info(String.valueOf(result.get(lastIndex)));
             if (null != nmfList && nmfList.size() > 0) {
                 log.info("待转码分段录音总数:" + nmfList.size());
                 LinkedHashMap<String, String> record = nmfList.get(0);
-                String id = record.get(Record.ID);
                 String pathName = record.get(Record.PATH_NAME);
-                String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + ".mp3"; //最终输出文件完整路径
+                String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + Record.MP3_FORMAT; //最终输出文件完整路径
 
                 if (nmfList.size() == 1) {
                     log.info("录音ID:" + id + "共1段,无需拼接");
@@ -76,7 +91,9 @@ public class GradeServiceImpl implements GradeService {
                     FileUtil.copy(srcPath, nmfFullPath, true);
                     log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
                     //转码
-                    Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, record.get(Record.CUT_OFFSET), record.get(Record.CUT_DURATION));
+                    String offset = String.valueOf(record.get(Record.CUT_OFFSET));
+                    String duration = String.valueOf(record.get(Record.CUT_DURATION));
+                    Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration, Record.MP3_FORMAT);
                     if (flag) {
                         log.info("转码成功,录音:" + id + ",保存至" + wavFullPath);
                     }else{
@@ -99,14 +116,16 @@ public class GradeServiceImpl implements GradeService {
                         FileUtil.copy(srcPath, nmfFullPath, true);
                         log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
                         //转码
-                        Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, recordN.get(Record.CUT_OFFSET), recordN.get(Record.CUT_DURATION));
+                        String offset = String.valueOf(recordN.get(Record.CUT_OFFSET));
+                        String duration = String.valueOf(recordN.get(Record.CUT_DURATION));
+                        Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration, Record.MP3_FORMAT);
                         if (flag) {
                             log.info("转码成功,录音输出至" + wavFullPath);
                         }else{
                             return "转码失败,录音:" + fileName;
                         }
                         FileUtil.del(nmfFullPath); //清理nmf文件
-                        return id + ".wav";
+                        return id + Record.MP3_FORMAT;
                     } else {
                         for (LinkedHashMap<String, String> part : nmfList) { //循环内为需拼接的一通完整录音
                             count++;
@@ -115,8 +134,10 @@ public class GradeServiceImpl implements GradeService {
                             String nmfFullPath = CommonUtil.endsWithBar(nmfPath) + id + "_" + count  + ".nmf";
                             FileUtil.copy(srcPath, nmfFullPath, true);
                             log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
-                            String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + ".wav";
-                            boolean flag = execTranscodeCmd(nmfFullPath, outPath, part.get(Record.CUT_OFFSET), part.get(Record.CUT_DURATION));
+                            String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + Record.MP3_FORMAT;
+                            String offset = String.valueOf(part.get(Record.CUT_OFFSET));
+                            String duration = String.valueOf(part.get(Record.CUT_DURATION));
+                            boolean flag = execTranscodeCmd(nmfFullPath, outPath, offset, duration, Record.MP3_FORMAT);
                             if (flag) {
                                 wavNameList.add(outPath);
                                 log.info("转码成功待拼接,录音:" + outPath);
@@ -145,7 +166,7 @@ public class GradeServiceImpl implements GradeService {
                     }
 
                 }
-                return id + ".wav";
+                return id + Record.MP3_FORMAT;
             } else {
                 log.info("存储过程返回为空,没有待转码录音");
             }
@@ -169,11 +190,12 @@ public class GradeServiceImpl implements GradeService {
      * @param destPath 目标路径
      * @param offset 时间偏移量
      * @param duration 持续时长
+     * @param format 录音格式 例如.mp3或.wav
      * @return java.lang.String
      * @author cyjjohn
      * @date 2021/5/6 13:32
      */
-    public Boolean execTranscodeCmd(String srcPath,String destPath, String offset, String duration) {
+    public Boolean execTranscodeCmd(String srcPath,String destPath, String offset, String duration, String format) {
         String result;
         String fileName = srcPath.substring(0, srcPath.lastIndexOf("."));
         //.nmf 为nice录音文件  输出左右g729声道录音
@@ -185,11 +207,11 @@ public class GradeServiceImpl implements GradeService {
             return false;
         }
         //左右声道g729转wav
-        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_C.g729 " + fileName + "_C.wav";
+        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_C.g729 " + fileName + "_C" + format;
         result = RuntimeUtil.execForStr(cmd);
         log.info(cmd);
         log.info(result);
-        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_S.g729 " + fileName + "_S.wav";
+        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_S.g729 " + fileName + "_S" + format;
         result = RuntimeUtil.execForStr(cmd);
         log.info(cmd);
         log.info(result);
@@ -198,7 +220,7 @@ public class GradeServiceImpl implements GradeService {
             int offsetInt = Integer.parseInt(offset);
             int durationInt = Integer.parseInt(duration);
             //读取wav时长
-            cmd = "tool/ffmpeg -i " + fileName + "_C.wav -hide_banner";
+            cmd = "tool/ffmpeg -i " + fileName + "_C" + format + " -hide_banner";
             result = RuntimeUtil.execForStr(cmd);
             String reg = "Duration:(.*?)\\.";
             Pattern p = Pattern.compile(reg);
@@ -212,11 +234,11 @@ public class GradeServiceImpl implements GradeService {
                 String durationTime = DateUtil.secondToTime(durationInt);
                 //修改完整wav文件名,让输出的片段wav与原本流程的相同
                 log.info("录音:" + fileName + "开始切割");
-                String originNameC = fileName + "_C.wav";
-                String tmpNameC = fileName + "_C_TMP.wav";
+                String originNameC = fileName + "_C" + format;
+                String tmpNameC = fileName + "_C_TMP" + format;
                 FileUtil.rename(FileUtil.file(originNameC), tmpNameC, true);
-                String originNameS = fileName + "_S.wav";
-                String tmpNameS = fileName + "_S_TMP.wav";
+                String originNameS = fileName + "_S" + format;
+                String tmpNameS = fileName + "_S_TMP" + format;
                 FileUtil.rename(FileUtil.file(originNameS), tmpNameS, true);
                 //ffmpeg.exe -y -i 1.mp3 -acodec copy -ss 00:01:04 -t 00:00:30 output.mp3
                 cmd = "tool/ffmpeg -y -i " + tmpNameC + " -acodec copy -ss " + startTime + " -t " + durationTime + " " + originNameC;
@@ -233,15 +255,15 @@ public class GradeServiceImpl implements GradeService {
         }
         //合并左右声道
         FileUtil.mkdir(destPath.substring(0, destPath.lastIndexOf("/")));
-        cmd = "tool/ffmpeg -y -i " + fileName + "_S.wav -i " + fileName + "_C.wav -filter_complex amovie=" + fileName + "_S.wav[l];amovie=" + fileName + "_C.wav[r];[l][r]amerge " + destPath;
+        cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + " -filter_complex amovie=" + fileName + "_S" + format + "[l];amovie=" + fileName + "_C" + format + "[r];[l][r]amerge " + destPath;
         log.info(cmd);
         result = RuntimeUtil.execForStr(cmd);
         log.info(result);
         //清理文件
         FileUtil.del(fileName + "_C.g729");
         FileUtil.del(fileName + "_S.g729");
-        FileUtil.del(fileName + "_C.wav");
-        FileUtil.del(fileName + "_S.wav");
+        FileUtil.del(fileName + "_C" + format);
+        FileUtil.del(fileName + "_S" + format);
         if (result.trim().endsWith("%")) { //成功时以%结尾
             return true;
         }else{
@@ -263,8 +285,8 @@ public class GradeServiceImpl implements GradeService {
         long min=Long.MAX_VALUE,max=0;
         for (Map<String, String> item : list) {
             //将开始时间和结束时间全部存储
-            long minDate = DateUtil.parse(item.get(Record.REC_START_TIME)).getTime();
-            long maxDate = DateUtil.parse(item.get(Record.REC_END_TIME)).getTime();
+            long minDate = DateUtil.parse(String.valueOf(item.get(Record.REC_START_TIME))).getTime();
+            long maxDate = DateUtil.parse(String.valueOf(item.get(Record.REC_END_TIME))).getTime();
             minList.add(minDate);
             maxList.add(maxDate);
             if (minDate <= min) {

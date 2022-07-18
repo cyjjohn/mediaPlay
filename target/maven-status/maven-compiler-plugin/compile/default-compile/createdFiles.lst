@@ -1,9 +1,0 @@
-com\welljoint\controller\ApiController.class
-com\welljoint\MediaResourceHttpRequestHandler.class
-com\welljoint\service\GradeService.class
-com\welljoint\ClearRunner.class
-com\welljoint\CommonUtil.class
-com\welljoint\constant\Record.class
-com\welljoint\App.class
-com\welljoint\service\GradeServiceImpl.class
-com\welljoint\bean\Payload.class

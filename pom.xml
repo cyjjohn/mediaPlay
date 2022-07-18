@@ -33,10 +33,16 @@
       <version>3.4.1</version>
     </dependency>
     <!--sqlserver驱动-->
+<!--    <dependency>-->
+<!--      <groupId>com.microsoft.sqlserver</groupId>-->
+<!--      <artifactId>sqljdbc4</artifactId>-->
+<!--      <version>4.0</version>-->
+<!--    </dependency>-->
+    <!-- mysql驱动 -->
     <dependency>
-      <groupId>com.microsoft.sqlserver</groupId>
-      <artifactId>sqljdbc4</artifactId>
-      <version>4.0</version>
+      <groupId>mysql</groupId>
+      <artifactId>mysql-connector-java</artifactId>
+      <version>8.0.21</version>
     </dependency>
     <!-- hutool工具包 -->
     <dependency>
@@ -47,6 +53,11 @@
     <dependency>
       <groupId>cn.hutool</groupId>
       <artifactId>hutool-db</artifactId>
+      <version>${hutool.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-json</artifactId>
       <version>${hutool.version}</version>
     </dependency>
     <dependency>

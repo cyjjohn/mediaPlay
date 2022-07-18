@@ -1,5 +1,7 @@
 package com.welljoint;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -11,6 +13,7 @@ import java.util.Map;
  * @Author cyjjohn
  * @Date: 2021/9/7 11:08
  */
+@Slf4j
 public class CommonUtil {
     public static String endsWithBar(String str){
         if (str != null) {
@@ -70,14 +73,17 @@ public class CommonUtil {
                     paramStr = new StringBuilder("'" + params[0] + "'");
                 } else {
                     for (String param : params) {
-                        param = param.replaceAll("'", "''"); //参数中的单引号改为两个单引号
-                        param = "'" + param + "'";
+                        if(param != null){
+                            param = param.replaceAll("'", "''"); //参数中的单引号改为两个单引号
+                            param = "'" + param + "'";
+                        }
                         paramStr.append(param).append(",");
                     }
                     paramStr.deleteCharAt(paramStr.length()-1);
                 }
             }
             sql = String.format("{call %s(%s)}", name, paramStr.toString());
+            log.info(sql);
             cstm = conn.prepareCall(sql);
             bl = cstm.execute(); //输出参数不会返回到结果集中，getXX方法专门用于获取输出参数
             while (bl) {
@@ -130,7 +136,10 @@ public class CommonUtil {
                     paramStr = new StringBuilder("'" + params[0] + "'");
                 } else {
                     for (String param : params) {
-                        param = "'" + param + "'";
+                        if(param != null){
+                            param = param.replaceAll("'", "''"); //参数中的单引号改为两个单引号
+                            param = "'" + param + "'";
+                        }
                         paramStr.append(param).append(",");
                     }
                     paramStr.deleteCharAt(paramStr.length()-1);
@@ -143,6 +152,7 @@ public class CommonUtil {
                 mark.append(",?");
             }
             sql = String.format("{call %s(%s" + mark.toString() + ")}", name, paramStr.toString());
+            log.info(sql);
             cstm = conn.prepareCall(sql);
             for (Map.Entry<String, Integer> entry : outParams.entrySet()) {
                 cstm.registerOutParameter(entry.getKey(), entry.getValue()); //注册输出参数,CallableStatement特有的方法

@@ -110,6 +110,7 @@ public class ApiController {
         response.setHeader("Content-Type", contentType);
         response.setHeader("Content-Length", String.valueOf(contentLength));
         response.setHeader("Content-Range", "bytes " + startByte + "-" + endByte + "/" + wavFile.length());
+        response.setHeader("Access-Control-Allow-Origin","*");
         BufferedOutputStream outputStream;
         RandomAccessFile randomAccessFile = null;
 
@@ -154,49 +155,50 @@ public class ApiController {
         return result;
     }
 
-    @RequestMapping({"/getPlayWav"})
-    @ResponseBody
-    public void getPlayWav(HttpServletRequest request, HttpServletResponse response, @RequestParam("SiteID") String SiteID, @RequestParam("InteractionID") String InteractionID, @RequestParam("Extension") String Extension, @RequestParam("StartTime") String StartTime) {
-        String voiceName = gradeService.makeWavFile(SiteID, InteractionID, Extension,DateUtil.parse(StartTime, "yyyy-MM-dd HH:mm:ss"));
+//    @RequestMapping({"/getPlayWav"})
+//    @ResponseBody
+//    public void getPlayWav(HttpServletRequest request, HttpServletResponse response, @RequestParam("SiteID") String SiteID, @RequestParam("InteractionID") String InteractionID, @RequestParam("Extension") String Extension, @RequestParam("StartTime") String StartTime) {
+//        String voiceName = gradeService.makeWavFile(SiteID, InteractionID, Extension,DateUtil.parse(StartTime, "yyyy-MM-dd HH:mm:ss"));
+//
+//        try {
+//            response.addHeader("Accept-Ranges", "bytes");
+//            response.addHeader("Content-Type", "audio/mpeg;charset=UTF-8");
+//            File file = FileUtil.file(CommonUtil.endsWithBar(wavPath) + voiceName);
+//            int len_l = (int)file.length();
+//            response.addHeader("Content-Length", len_l + "");
+//            String range = request.getHeader("Range");
+//            String[] rs = range.split("\\=");
+//            range = rs[1].split("\\-")[0];
+//            int start = Integer.parseInt(range);
+//            response.addHeader("Content-Range", "bytes " + start + "-" + (len_l - 1) + "/" + len_l);
+//            byte[] buf = new byte[2048];
+//            FileInputStream fis = new FileInputStream(file);
+//            ServletOutputStream servletOutputStream = response.getOutputStream();
+//            len_l = fis.read(buf);
+//            while (len_l != -1) {
+//                servletOutputStream.write(buf, 0, len_l);
+//                len_l = fis.read(buf);
+//            }
+//            servletOutputStream.flush();
+//            servletOutputStream.close();
+//            fis.close();
+//        } catch (Exception e) {
+//            log.error("getPlayWav报错：" + e);
+//        }
+//    }
 
-        try {
-            response.addHeader("Accept-Ranges", "bytes");
-            response.addHeader("Content-Type", "audio/mpeg;charset=UTF-8");
-            File file = FileUtil.file(CommonUtil.endsWithBar(wavPath) + voiceName);
-            int len_l = (int)file.length();
-            response.addHeader("Content-Length", len_l + "");
-            String range = request.getHeader("Range");
-            String[] rs = range.split("\\=");
-            range = rs[1].split("\\-")[0];
-            int start = Integer.parseInt(range);
-            response.addHeader("Content-Range", "bytes " + start + "-" + (len_l - 1) + "/" + len_l);
-            byte[] buf = new byte[2048];
-            FileInputStream fis = new FileInputStream(file);
-            ServletOutputStream servletOutputStream = response.getOutputStream();
-            len_l = fis.read(buf);
-            while (len_l != -1) {
-                servletOutputStream.write(buf, 0, len_l);
-                len_l = fis.read(buf);
-            }
-            servletOutputStream.flush();
-            servletOutputStream.close();
-            fis.close();
-        } catch (Exception e) {
-            log.error("getPlayWav报错：" + e);
-        }
-    }
-
-    @GetMapping({"/wavUrl"})
-    @ResponseBody
-    public String getWavUrl(@RequestParam("SiteID") String SiteID, @RequestParam("InteractionID") String InteractionID, @RequestParam("Extension") String Extension, @RequestParam("StartTime") String StartTime) {
-        String voiceName = gradeService.makeWavFile(SiteID, InteractionID, Extension, DateUtil.parse(StartTime, "yyyy-MM-dd HH:mm:ss"));
-        return domain + voiceName;
-    }
+//    @GetMapping({"/wavUrl"})
+//    @ResponseBody
+//    public String getWavUrl(@RequestParam("SiteID") String SiteID, @RequestParam("InteractionID") String InteractionID, @RequestParam("Extension") String Extension, @RequestParam("StartTime") String StartTime) {
+//        String voiceName = gradeService.makeWavFile(SiteID, InteractionID, Extension, DateUtil.parse(StartTime, "yyyy-MM-dd HH:mm:ss"));
+//        return domain + voiceName;
+//    }
 
     @PostMapping({"/wavUrl"})
     @ResponseBody
-    public String wavUrl(@RequestBody Payload payload) {
-        String voiceName = gradeService.makeWavFile(payload.getSiteID(), payload.getInteractionID(), payload.getExtension(), DateUtil.parse(payload.getStartTime(), "yyyy-MM-dd HH:mm:ss"));
+    public String wavUrl(@RequestBody String jsonStr) {
+        log.info(jsonStr);
+        String voiceName = gradeService.makeWavFile(jsonStr);
         return domain + voiceName;
     }
 }

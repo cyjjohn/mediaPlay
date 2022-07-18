@@ -12,9 +12,10 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Payload {
-    private String siteID;
-    private String interactionID;
-    private String extension;
+    private Long userId;
+    private Integer sId;
+    private String interactionId;
+    private String contactId;
     @JsonFormat(timezone = "GMT+8",pattern = "yyyy-MM-dd HH:mm:ss")
-    private String startTime;
+    private String contactStartTime;
 }
