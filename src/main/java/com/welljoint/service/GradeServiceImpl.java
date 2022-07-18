@@ -76,7 +76,9 @@ public class GradeServiceImpl implements GradeService {
                     FileUtil.copy(srcPath, nmfFullPath, true);
                     log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
                     //转码
-                    Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, record.get(Record.CUT_OFFSET), record.get(Record.CUT_DURATION));
+                    String offset = String.valueOf(record.get(Record.CUT_OFFSET));
+                    String duration = String.valueOf(record.get(Record.CUT_DURATION));
+                    Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration);
                     if (flag) {
                         log.info("转码成功,录音:" + id + ",保存至" + wavFullPath);
                     }else{
@@ -99,7 +101,9 @@ public class GradeServiceImpl implements GradeService {
                         FileUtil.copy(srcPath, nmfFullPath, true);
                         log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
                         //转码
-                        Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, recordN.get(Record.CUT_OFFSET), recordN.get(Record.CUT_DURATION));
+                        String offset = String.valueOf(recordN.get(Record.CUT_OFFSET));
+                        String duration = String.valueOf(recordN.get(Record.CUT_DURATION));
+                        Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration);
                         if (flag) {
                             log.info("转码成功,录音输出至" + wavFullPath);
                         }else{
@@ -116,7 +120,9 @@ public class GradeServiceImpl implements GradeService {
                             FileUtil.copy(srcPath, nmfFullPath, true);
                             log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
                             String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + ".wav";
-                            boolean flag = execTranscodeCmd(nmfFullPath, outPath, part.get(Record.CUT_OFFSET), part.get(Record.CUT_DURATION));
+                            String offset = String.valueOf(part.get(Record.CUT_OFFSET));
+                            String duration = String.valueOf(part.get(Record.CUT_DURATION));
+                            boolean flag = execTranscodeCmd(nmfFullPath, outPath, offset, duration);
                             if (flag) {
                                 wavNameList.add(outPath);
                                 log.info("转码成功待拼接,录音:" + outPath);
@@ -263,8 +269,8 @@ public class GradeServiceImpl implements GradeService {
         long min=Long.MAX_VALUE,max=0;
         for (Map<String, String> item : list) {
             //将开始时间和结束时间全部存储
-            long minDate = DateUtil.parse(item.get(Record.REC_START_TIME)).getTime();
-            long maxDate = DateUtil.parse(item.get(Record.REC_END_TIME)).getTime();
+            long minDate = DateUtil.parse(String.valueOf(item.get(Record.REC_START_TIME))).getTime();
+            long maxDate = DateUtil.parse(String.valueOf(item.get(Record.REC_END_TIME))).getTime();
             minList.add(minDate);
             maxList.add(maxDate);
             if (minDate <= min) {
