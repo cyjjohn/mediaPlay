@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Types;
@@ -24,8 +25,11 @@ import java.util.regex.Pattern;
 @Service
 public class GradeServiceImpl implements GradeService {
 
-    @Value("${prefix.nmf}")
-    private String nmfPath;
+    @Value("${suffix.file}")
+    private String suffix;
+    
+    @Value("${prefix.origin}")
+    private String originPath;
 
     @Value("${prefix.wav}")
     private String wavPath;
@@ -74,77 +78,80 @@ public class GradeServiceImpl implements GradeService {
             map.put("out_Content", Types.VARCHAR);
             List<Object> result = CommonUtil.getResult(conn, procName, params, map);
             int lastIndex = result.size() - 1; //查询结果集固定在最后，前面为出参
-            List<LinkedHashMap<String, String>> nmfList = (List<LinkedHashMap<String, String>>) result.get(lastIndex);
+            List<LinkedHashMap<String, String>> recordList = (List<LinkedHashMap<String, String>>) result.get(lastIndex);
             log.info(String.valueOf(result.get(lastIndex)));
-            if (null != nmfList && nmfList.size() > 0) {
-                log.info("待转码分段录音总数:" + nmfList.size());
-                LinkedHashMap<String, String> record = nmfList.get(0);
-                String pathName = record.get(Record.PATH_NAME);
+            if (null != recordList && recordList.size() > 0) {
+                log.info("待转码分段录音总数:" + recordList.size());
+                LinkedHashMap<String, String> record = recordList.get(0);
+                String pathName = CommonUtil.startsWithBar(record.get(Record.PATH_NAME));
                 String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + Record.MP3_FORMAT; //最终输出文件完整路径
 
-                if (nmfList.size() == 1) {
+                if (recordList.size() == 1) {
                     log.info("录音ID:" + id + "共1段,无需拼接");
                     //拷贝挂载盘录音到本地
                     String fileName = record.get(Record.FILE_NAME);
                     String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
-                    String nmfFullPath = CommonUtil.endsWithBar(nmfPath) + id + ".nmf";
-                    FileUtil.copy(srcPath, nmfFullPath, true);
-                    log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
+                    String originFullPath = CommonUtil.endsWithBar(originPath) + id + suffix;
+                    File srcFile = new File(srcPath);
+                    FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
+                    log.info("录音" + id + "从" + srcPath + "拷贝至" + originFullPath);
                     //转码
                     String offset = String.valueOf(record.get(Record.CUT_OFFSET));
                     String duration = String.valueOf(record.get(Record.CUT_DURATION));
-                    Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration, Record.MP3_FORMAT);
+                    Boolean flag = execTranscodeCmd(originFullPath, wavFullPath, offset, duration, Record.MP3_FORMAT);
                     if (flag) {
                         log.info("转码成功,录音:" + id + ",保存至" + wavFullPath);
                     }else{
                         return "转码失败,录音:" + id;
                     }
-                    FileUtil.del(nmfFullPath); //清理nmf文件
+                    FileUtil.del(originFullPath); //清理保存到本地的原始文件
                 } else {
-                    log.info("录音ID:" + id + "共" + nmfList.size() + "段,需拼接");
+                    log.info("录音ID:" + id + "共" + recordList.size() + "段,需拼接");
                     int count = 0; //计数
                     List<String> wavNameList = new ArrayList<>();
 
                     //先循环遍历时间,看是否存在某条记录同时覆盖最小开始时间和最大结束时间
-                    int index = getCoverIdx(nmfList);
+                    int index = getCoverIdx(recordList);
                     if (index != -1) {
                         log.info("录音:" + id + "为特殊情况,取最长段代替拼接");
-                        LinkedHashMap<String, String> recordN = nmfList.get(index);
+                        LinkedHashMap<String, String> recordN = recordList.get(index);
                         String fileName = recordN.get(Record.FILE_NAME);
                         String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
-                        String nmfFullPath = CommonUtil.endsWithBar(nmfPath) + id + ".nmf";
-                        FileUtil.copy(srcPath, nmfFullPath, true);
-                        log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
+                        String originFullPath = CommonUtil.endsWithBar(originPath) + id + suffix;
+                        File srcFile = new File(srcPath);
+                        FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
+                        log.info("录音" + id + "从" + srcPath + "拷贝至" + originFullPath);
                         //转码
                         String offset = String.valueOf(recordN.get(Record.CUT_OFFSET));
                         String duration = String.valueOf(recordN.get(Record.CUT_DURATION));
-                        Boolean flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration, Record.MP3_FORMAT);
+                        Boolean flag = execTranscodeCmd(originFullPath, wavFullPath, offset, duration, Record.MP3_FORMAT);
                         if (flag) {
                             log.info("转码成功,录音输出至" + wavFullPath);
                         }else{
                             return "转码失败,录音:" + fileName;
                         }
-                        FileUtil.del(nmfFullPath); //清理nmf文件
+                        FileUtil.del(originFullPath); //清理保存到本地的原始文件
                         return id + Record.MP3_FORMAT;
                     } else {
-                        for (LinkedHashMap<String, String> part : nmfList) { //循环内为需拼接的一通完整录音
+                        for (LinkedHashMap<String, String> part : recordList) { //循环内为需拼接的一通完整录音
                             count++;
                             String fileName = part.get(Record.FILE_NAME);
                             String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
-                            String nmfFullPath = CommonUtil.endsWithBar(nmfPath) + id + "_" + count  + ".nmf";
-                            FileUtil.copy(srcPath, nmfFullPath, true);
-                            log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
+                            String originFullPath = CommonUtil.endsWithBar(originPath) + id + "_" + count  + suffix;
+                            File srcFile = new File(srcPath);
+                            FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
+                            log.info("录音" + id + "从" + srcPath + "拷贝至" + originFullPath);
                             String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + Record.MP3_FORMAT;
                             String offset = String.valueOf(part.get(Record.CUT_OFFSET));
                             String duration = String.valueOf(part.get(Record.CUT_DURATION));
-                            boolean flag = execTranscodeCmd(nmfFullPath, outPath, offset, duration, Record.MP3_FORMAT);
+                            boolean flag = execTranscodeCmd(originFullPath, outPath, offset, duration, Record.MP3_FORMAT);
                             if (flag) {
                                 wavNameList.add(outPath);
                                 log.info("转码成功待拼接,录音:" + outPath);
                             }else{
                                 return "转码失败,录音:" + id;
                             }
-                            FileUtil.del(nmfFullPath); //清理nmf文件
+                            FileUtil.del(originFullPath); //清理保存到本地的原始文件
                         }
                     }
 
@@ -197,73 +204,47 @@ public class GradeServiceImpl implements GradeService {
      */
     public Boolean execTranscodeCmd(String srcPath,String destPath, String offset, String duration, String format) {
         String result;
-        String fileName = srcPath.substring(0, srcPath.lastIndexOf("."));
-        //.nmf 为nice录音文件  输出左右g729声道录音
-        String cmd = "tool/nice/nmf2G729 " + srcPath + " " + fileName + "_C.g729 " + fileName + "_S.g729";
-        result=RuntimeUtil.execForStr(cmd);
+
+        //ffmpeg -y -i in.aac -acodec libmp3lame -ar 8000 -ac 2 out.mp3
+        String cmd = "tool/ffmpeg -y -i " + srcPath + " -acodec libmp3lame -ar 8000 -ac 2 " + destPath;
         log.info(cmd);
-        if(StrUtil.isNotBlank(result)){ //成功时无信息
-            log.info(result);
-            return false;
-        }
-        //左右声道g729转wav
-        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_C.g729 " + fileName + "_C" + format;
         result = RuntimeUtil.execForStr(cmd);
-        log.info(cmd);
         log.info(result);
-        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_S.g729 " + fileName + "_S" + format;
-        result = RuntimeUtil.execForStr(cmd);
-        log.info(cmd);
-        log.info(result);
+
         //判断是否切割
         if (StrUtil.isNotBlank(offset) && StrUtil.isNotBlank(duration)) {
             int offsetInt = Integer.parseInt(offset);
             int durationInt = Integer.parseInt(duration);
-            //读取wav时长
-            cmd = "tool/ffmpeg -i " + fileName + "_C" + format + " -hide_banner";
-            result = RuntimeUtil.execForStr(cmd);
-            String reg = "Duration:(.*?)\\.";
-            Pattern p = Pattern.compile(reg);
-            Matcher m = p.matcher(result);
-            int maxSecond=0;
-            if (m.find()) {
-                maxSecond = DateUtil.timeToSecond(m.group(1).trim());
-            }
-            if (offsetInt >= 0 && offsetInt < maxSecond && durationInt > 0) {
-                String startTime = DateUtil.secondToTime(offsetInt);
-                String durationTime = DateUtil.secondToTime(durationInt);
-                //修改完整wav文件名,让输出的片段wav与原本流程的相同
-                log.info("录音:" + fileName + "开始切割");
-                String originNameC = fileName + "_C" + format;
-                String tmpNameC = fileName + "_C_TMP" + format;
-                FileUtil.rename(FileUtil.file(originNameC), tmpNameC, true);
-                String originNameS = fileName + "_S" + format;
-                String tmpNameS = fileName + "_S_TMP" + format;
-                FileUtil.rename(FileUtil.file(originNameS), tmpNameS, true);
-                //ffmpeg.exe -y -i 1.mp3 -acodec copy -ss 00:01:04 -t 00:00:30 output.mp3
-                cmd = "tool/ffmpeg -y -i " + tmpNameC + " -acodec copy -ss " + startTime + " -t " + durationTime + " " + originNameC;
+            if (offsetInt >= 0 && durationInt > 0) {
+                //读取wav时长
+                cmd = "tool/ffmpeg -i " + destPath + " -hide_banner";
                 result = RuntimeUtil.execForStr(cmd);
-                log.info(cmd);
-                log.info(result);
-                cmd = "tool/ffmpeg -y -i " + tmpNameS + " -acodec copy -ss " + startTime + " -t " + durationTime + " " + originNameS;
-                result = RuntimeUtil.execForStr(cmd);
-                log.info(cmd);
-                log.info(result);
-                FileUtil.del(tmpNameC);
-                FileUtil.del(tmpNameS);
+                String reg = "Duration:(.*?)\\.";
+                Pattern p = Pattern.compile(reg);
+                Matcher m = p.matcher(result);
+                int maxSecond=0;
+                if (m.find()) {
+                    maxSecond = DateUtil.timeToSecond(m.group(1).trim());
+                }
+                if (offsetInt < maxSecond) {
+                    String startTime = DateUtil.secondToTime(offsetInt);
+                    String durationTime = DateUtil.secondToTime(durationInt);
+                    //修改完整wav文件名,让输出的片段与原本流程的相同
+                    log.info("录音:" + destPath + "开始切割");
+                    String originName = destPath;
+                    String tmpName = destPath.substring(0, destPath.lastIndexOf(".")) + "_tmp" + format;
+                    FileUtil.rename(FileUtil.file(originName), tmpName, true);
+                    //ffmpeg.exe -y -i 1.mp3 -acodec copy -ss 00:01:04 -t 00:00:30 output.mp3
+                    cmd = "tool/ffmpeg -y -i " + tmpName + " -acodec copy -ss " + startTime + " -t " + durationTime + " " + originName;
+                    result = RuntimeUtil.execForStr(cmd);
+                    log.info(cmd);
+                    log.info(result);
+
+                    FileUtil.del(tmpName);
+                }
             }
         }
-        //合并左右声道
-        FileUtil.mkdir(destPath.substring(0, destPath.lastIndexOf("/")));
-        cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + " -filter_complex amovie=" + fileName + "_S" + format + "[l];amovie=" + fileName + "_C" + format + "[r];[l][r]amerge " + destPath;
-        log.info(cmd);
-        result = RuntimeUtil.execForStr(cmd);
-        log.info(result);
-        //清理文件
-        FileUtil.del(fileName + "_C.g729");
-        FileUtil.del(fileName + "_S.g729");
-        FileUtil.del(fileName + "_C" + format);
-        FileUtil.del(fileName + "_S" + format);
+
         if (result.trim().endsWith("%")) { //成功时以%结尾
             return true;
         }else{
