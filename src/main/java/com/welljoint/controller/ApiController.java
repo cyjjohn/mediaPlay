@@ -198,7 +198,7 @@ public class ApiController {
     @ResponseBody
     public String wavUrl(@RequestBody String jsonStr) {
         log.info(jsonStr);
-        String voiceName = gradeService.makeWavFile(jsonStr);
+        String voiceName = gradeService.makeFile(jsonStr);
         return domain + voiceName;
     }
 }

@@ -44,20 +44,21 @@ public class GradeServiceImpl implements GradeService {
      * @author cyjjohn
      * @date 2022/7/14 15:12
      */
-    public String makeWavFile(String jsonStr) {
+    public String makeFile(String jsonStr) {
         JSONObject jsonObject = JSONUtil.parseObj(jsonStr);
         String interactionId = jsonObject.getStr("InteractionID");
         String contactId = jsonObject.getStr("ContactID");
+        String format = jsonObject.getStr("Format");
 
         //判断流水号是否存在
         String wav = "";
         String id = "";
         if (StrUtil.isNotBlank(contactId)) {
             if (StrUtil.isNotBlank(interactionId)) {
-                wav = CommonUtil.endsWithBar(wavPath) + interactionId + Record.MP3_FORMAT;
+                wav = CommonUtil.endsWithBar(wavPath) + interactionId + format;
                 id = interactionId;
             } else {
-                wav = CommonUtil.endsWithBar(wavPath) + contactId + Record.MP3_FORMAT;
+                wav = CommonUtil.endsWithBar(wavPath) + contactId + format;
                 id = contactId;
             }
         } else {
@@ -65,7 +66,7 @@ public class GradeServiceImpl implements GradeService {
         }
         boolean exist = FileUtil.exist(wav);
         if (exist) {
-            return id + Record.MP3_FORMAT;
+            return id + format;
         }
 
         Connection conn = null;
@@ -84,7 +85,7 @@ public class GradeServiceImpl implements GradeService {
                 log.info("待转码分段录音总数:" + recordList.size());
                 LinkedHashMap<String, String> record = recordList.get(0);
                 String pathName = CommonUtil.startsWithBar(record.get(Record.PATH_NAME));
-                String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + Record.MP3_FORMAT; //最终输出文件完整路径
+                String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + format; //最终输出文件完整路径
 
                 if (recordList.size() == 1) {
                     log.info("录音ID:" + id + "共1段,无需拼接");
@@ -98,7 +99,7 @@ public class GradeServiceImpl implements GradeService {
                     //转码
                     String offset = String.valueOf(record.get(Record.CUT_OFFSET));
                     String duration = String.valueOf(record.get(Record.CUT_DURATION));
-                    Boolean flag = execTranscodeCmd(originFullPath, wavFullPath, offset, duration, Record.MP3_FORMAT);
+                    Boolean flag = execTranscodeCmd(originFullPath, wavFullPath, offset, duration, format);
                     if (flag) {
                         log.info("转码成功,录音:" + id + ",保存至" + wavFullPath);
                     }else{
@@ -124,14 +125,14 @@ public class GradeServiceImpl implements GradeService {
                         //转码
                         String offset = String.valueOf(recordN.get(Record.CUT_OFFSET));
                         String duration = String.valueOf(recordN.get(Record.CUT_DURATION));
-                        Boolean flag = execTranscodeCmd(originFullPath, wavFullPath, offset, duration, Record.MP3_FORMAT);
+                        Boolean flag = execTranscodeCmd(originFullPath, wavFullPath, offset, duration, format);
                         if (flag) {
                             log.info("转码成功,录音输出至" + wavFullPath);
                         }else{
                             return "转码失败,录音:" + fileName;
                         }
                         FileUtil.del(originFullPath); //清理保存到本地的原始文件
-                        return id + Record.MP3_FORMAT;
+                        return id + format;
                     } else {
                         for (LinkedHashMap<String, String> part : recordList) { //循环内为需拼接的一通完整录音
                             count++;
@@ -141,10 +142,10 @@ public class GradeServiceImpl implements GradeService {
                             File srcFile = new File(srcPath);
                             FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
                             log.info("录音" + id + "从" + srcPath + "拷贝至" + originFullPath);
-                            String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + Record.MP3_FORMAT;
+                            String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + format;
                             String offset = String.valueOf(part.get(Record.CUT_OFFSET));
                             String duration = String.valueOf(part.get(Record.CUT_DURATION));
-                            boolean flag = execTranscodeCmd(originFullPath, outPath, offset, duration, Record.MP3_FORMAT);
+                            boolean flag = execTranscodeCmd(originFullPath, outPath, offset, duration, format);
                             if (flag) {
                                 wavNameList.add(outPath);
                                 log.info("转码成功待拼接,录音:" + outPath);
@@ -173,7 +174,7 @@ public class GradeServiceImpl implements GradeService {
                     }
 
                 }
-                return id + Record.MP3_FORMAT;
+                return id + format;
             } else {
                 log.info("存储过程返回为空,没有待转码录音");
             }
@@ -205,8 +206,19 @@ public class GradeServiceImpl implements GradeService {
     public Boolean execTranscodeCmd(String srcPath,String destPath, String offset, String duration, String format) {
         String result;
 
-        //ffmpeg -y -i in.aac -acodec libmp3lame -ar 8000 -ac 2 out.mp3
-        String cmd = "tool/ffmpeg -y -i " + srcPath + " -acodec libmp3lame -ar 8000 -ac 2 " + destPath;
+        String destFullPath = destPath.substring(0, destPath.lastIndexOf('.')) + format;
+        String cmd = "";
+        switch (format) {
+            case ".wav":
+                // ffmpeg -y -i in.aac -ar 8000 -ac 2 out.wav
+                cmd = "ffmpeg -y -i " + srcPath + " -ar 8000 -ac 2 " + destFullPath;
+                break;
+            case ".mp3":
+            default:
+                // ffmpeg -y -i in.aac -acodec libmp3lame -ar 8000 -ac 2 out.mp3
+                cmd = "ffmpeg -y -i " + srcPath + " -acodec libmp3lame -ar 8000 -ac 2 " + destFullPath;
+                break;
+        }
         log.info(cmd);
         result = RuntimeUtil.execForStr(cmd);
         log.info(result);
@@ -217,7 +229,7 @@ public class GradeServiceImpl implements GradeService {
             int durationInt = Integer.parseInt(duration);
             if (offsetInt >= 0 && durationInt > 0) {
                 //读取wav时长
-                cmd = "tool/ffmpeg -i " + destPath + " -hide_banner";
+                cmd = "ffmpeg -i " + destFullPath + " -hide_banner";
                 result = RuntimeUtil.execForStr(cmd);
                 String reg = "Duration:(.*?)\\.";
                 Pattern p = Pattern.compile(reg);
@@ -230,12 +242,11 @@ public class GradeServiceImpl implements GradeService {
                     String startTime = DateUtil.secondToTime(offsetInt);
                     String durationTime = DateUtil.secondToTime(durationInt);
                     //修改完整wav文件名,让输出的片段与原本流程的相同
-                    log.info("录音:" + destPath + "开始切割");
-                    String originName = destPath;
-                    String tmpName = destPath.substring(0, destPath.lastIndexOf(".")) + "_tmp" + format;
-                    FileUtil.rename(FileUtil.file(originName), tmpName, true);
+                    log.info("录音:" + destFullPath + "开始切割");
+                    String tmpName = destFullPath.substring(0, destFullPath.lastIndexOf(".")) + "_tmp" + format;
+                    FileUtil.rename(FileUtil.file(destFullPath), tmpName, true);
                     //ffmpeg.exe -y -i 1.mp3 -acodec copy -ss 00:01:04 -t 00:00:30 output.mp3
-                    cmd = "tool/ffmpeg -y -i " + tmpName + " -acodec copy -ss " + startTime + " -t " + durationTime + " " + originName;
+                    cmd = "ffmpeg -y -i " + tmpName + " -acodec copy -ss " + startTime + " -t " + durationTime + " " + destFullPath;
                     result = RuntimeUtil.execForStr(cmd);
                     log.info(cmd);
                     log.info(result);

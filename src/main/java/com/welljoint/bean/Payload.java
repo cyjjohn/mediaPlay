@@ -18,4 +18,5 @@ public class Payload {
     private String contactId;
     @JsonFormat(timezone = "GMT+8",pattern = "yyyy-MM-dd HH:mm:ss")
     private String contactStartTime;
+    private String format;
 }
