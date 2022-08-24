@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
@@ -73,7 +74,8 @@ public class GradeServiceImpl implements GradeService {
                     String fileName = record.get(Record.FILE_NAME);
                     String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
                     String nmfFullPath = CommonUtil.endsWithBar(nmfPath) + id + ".nmf";
-                    FileUtil.copy(srcPath, nmfFullPath, true);
+                    File srcFile = new File(StrUtil.isNotBlank(srcPath) ? srcPath.replaceAll("\\\\", "/") : srcPath);
+                    FileUtil.copy(srcFile, FileUtil.file(nmfFullPath), true);
                     log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
                     //转码
                     String offset = String.valueOf(record.get(Record.CUT_OFFSET));
@@ -92,51 +94,27 @@ public class GradeServiceImpl implements GradeService {
                     int count = 0; //计数
                     List<String> wavNameList = new ArrayList<>();
 
-                    //先循环遍历时间,看是否存在某条记录同时覆盖最小开始时间和最大结束时间
-                    int index = getCoverIdx(nmfList);
-                    if (index != -1) {
-                        log.info("录音:" + id + "为特殊情况,取最长段代替拼接");
-                        LinkedHashMap<String, String> recordN = nmfList.get(index);
-                        String fileName = recordN.get(Record.FILE_NAME);
+                    for (LinkedHashMap<String, String> part : nmfList) { //循环内为需拼接的一通完整录音
+                        count++;
+                        String fileName = part.get(Record.FILE_NAME);
                         String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
-                        String nmfFullPath = CommonUtil.endsWithBar(nmfPath) + id + ".nmf";
-                        FileUtil.copy(srcPath, nmfFullPath, true);
+                        String nmfFullPath = CommonUtil.endsWithBar(nmfPath) + id + "_" + count  + ".nmf";
+                        File srcFile = new File(StrUtil.isNotBlank(srcPath) ? srcPath.replaceAll("\\\\", "/") : srcPath);
+                        FileUtil.copy(srcFile, FileUtil.file(nmfFullPath), true);
                         log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
-                        //转码
-                        String offset = String.valueOf(recordN.get(Record.CUT_OFFSET));
-                        String duration = String.valueOf(recordN.get(Record.CUT_DURATION));
-                        int flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration);
+                        String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + ".wav";
+                        String offset = String.valueOf(part.get(Record.CUT_OFFSET));
+                        String duration = String.valueOf(part.get(Record.CUT_DURATION));
+                        int flag = execTranscodeCmd(nmfFullPath, outPath, offset, duration);
                         if (flag==1) {
-                            log.info("转码成功,录音输出至" + wavFullPath);
+                            wavNameList.add(outPath);
+                            log.info("转码成功待拼接,录音:" + outPath);
                         }else if(flag==0){
-                            log.info("转码放弃,录音:" + id);
+                            log.info("转码放弃,录音:" + id + "第" + count + "段");
                         }else if(flag==-1){
                             return "转码失败,录音:" + id;
                         }
                         FileUtil.del(nmfFullPath); //清理nmf文件
-                        return id + ".wav";
-                    } else {
-                        for (LinkedHashMap<String, String> part : nmfList) { //循环内为需拼接的一通完整录音
-                            count++;
-                            String fileName = part.get(Record.FILE_NAME);
-                            String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
-                            String nmfFullPath = CommonUtil.endsWithBar(nmfPath) + id + "_" + count  + ".nmf";
-                            FileUtil.copy(srcPath, nmfFullPath, true);
-                            log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
-                            String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + ".wav";
-                            String offset = String.valueOf(part.get(Record.CUT_OFFSET));
-                            String duration = String.valueOf(part.get(Record.CUT_DURATION));
-                            int flag = execTranscodeCmd(nmfFullPath, outPath, offset, duration);
-                            if (flag==1) {
-                                wavNameList.add(outPath);
-                                log.info("转码成功待拼接,录音:" + outPath);
-                            }else if(flag==0){
-                                log.info("转码放弃,录音:" + id + "第" + count + "段");
-                            }else if(flag==-1){
-                                return "转码失败,录音:" + id;
-                            }
-                            FileUtil.del(nmfFullPath); //清理nmf文件
-                        }
                     }
 
                     //拼接命令
@@ -219,7 +197,7 @@ public class GradeServiceImpl implements GradeService {
             if (m.find()) {
                 maxSecond = DateUtil.timeToSecond(m.group(1).trim());
             }
-            if (offsetInt >= 0 && (offsetInt+durationInt) < maxSecond && durationInt > 0) {
+            if (offsetInt >= 0 && offsetInt < maxSecond && durationInt > 0) {
                 String startTime = DateUtil.secondToTime(offsetInt);
                 String durationTime = DateUtil.secondToTime(durationInt);
                 //修改完整wav文件名,让输出的片段wav与原本流程的相同
