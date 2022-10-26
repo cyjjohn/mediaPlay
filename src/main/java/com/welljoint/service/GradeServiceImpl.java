@@ -37,6 +37,36 @@ public class GradeServiceImpl implements GradeService {
     @Value("${proc.name}")
     private String procName;
 
+    @Override
+    public void count(String jsonStr) {
+        JSONObject jsonObject = JSONUtil.parseObj(jsonStr);
+        String interactionId = jsonObject.getStr("InteractionID");
+        if (StrUtil.isBlank(interactionId)) {
+            log.info("调用spCoachSetCount计数");
+            Connection conn = null;
+            try {
+                conn = Db.use().getConnection();
+                String[] params = {jsonStr};
+                Map<String, Integer> map = new LinkedHashMap<>();
+                map.put("out_Status", Types.INTEGER);
+                map.put("out_Content", Types.VARCHAR);
+                List<Object> result = CommonUtil.getResult(conn, "spCoachSetCount", params, map);
+                int lastIndex = result.size() - 1;
+                log.info(String.valueOf(result.get(lastIndex)));
+            } catch (SQLException e) {
+                log.info(e.getMessage());
+            } finally {
+                try {
+                    if (conn != null) {
+                        conn.close();
+                    }
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
     /***
      * @description
      * @param jsonStr
@@ -111,49 +141,25 @@ public class GradeServiceImpl implements GradeService {
                     int count = 0; //计数
                     List<String> wavNameList = new ArrayList<>();
 
-                    //先循环遍历时间,看是否存在某条记录同时覆盖最小开始时间和最大结束时间
-                    int index = getCoverIdx(recordList);
-                    if (index != -1) {
-                        log.info("录音:" + id + "为特殊情况,取最长段代替拼接");
-                        LinkedHashMap<String, String> recordN = recordList.get(index);
-                        String fileName = recordN.get(Record.FILE_NAME);
+                    for (LinkedHashMap<String, String> part : recordList) { //循环内为需拼接的一通完整录音
+                        count++;
+                        String fileName = part.get(Record.FILE_NAME);
                         String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
-                        String originFullPath = CommonUtil.endsWithBar(originPath) + id + suffix;
+                        String originFullPath = CommonUtil.endsWithBar(originPath) + id + "_" + count  + suffix;
                         File srcFile = new File(srcPath);
                         FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
                         log.info("录音" + id + "从" + srcPath + "拷贝至" + originFullPath);
-                        //转码
-                        String offset = String.valueOf(recordN.get(Record.CUT_OFFSET));
-                        String duration = String.valueOf(recordN.get(Record.CUT_DURATION));
-                        Boolean flag = execTranscodeCmd(originFullPath, wavFullPath, offset, duration, format);
+                        String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + format;
+                        String offset = String.valueOf(part.get(Record.CUT_OFFSET));
+                        String duration = String.valueOf(part.get(Record.CUT_DURATION));
+                        boolean flag = execTranscodeCmd(originFullPath, outPath, offset, duration, format);
                         if (flag) {
-                            log.info("转码成功,录音输出至" + wavFullPath);
+                            wavNameList.add(outPath);
+                            log.info("转码成功待拼接,录音:" + outPath);
                         }else{
-                            return "转码失败,录音:" + fileName;
+                            return "转码失败,录音:" + id;
                         }
                         FileUtil.del(originFullPath); //清理保存到本地的原始文件
-                        return id + format;
-                    } else {
-                        for (LinkedHashMap<String, String> part : recordList) { //循环内为需拼接的一通完整录音
-                            count++;
-                            String fileName = part.get(Record.FILE_NAME);
-                            String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
-                            String originFullPath = CommonUtil.endsWithBar(originPath) + id + "_" + count  + suffix;
-                            File srcFile = new File(srcPath);
-                            FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
-                            log.info("录音" + id + "从" + srcPath + "拷贝至" + originFullPath);
-                            String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + format;
-                            String offset = String.valueOf(part.get(Record.CUT_OFFSET));
-                            String duration = String.valueOf(part.get(Record.CUT_DURATION));
-                            boolean flag = execTranscodeCmd(originFullPath, outPath, offset, duration, format);
-                            if (flag) {
-                                wavNameList.add(outPath);
-                                log.info("转码成功待拼接,录音:" + outPath);
-                            }else{
-                                return "转码失败,录音:" + id;
-                            }
-                            FileUtil.del(originFullPath); //清理保存到本地的原始文件
-                        }
                     }
 
                     //拼接命令
@@ -264,45 +270,4 @@ public class GradeServiceImpl implements GradeService {
         }
     }
 
-    /**
-     * @description 获取单条覆盖全部时长的特殊录音的索引(下标从0开始),当不存在单条覆盖全部时返回-1
-     * @param list 完整录音的片段集合
-     * @return java.lang.Integer
-     * @author cyjjohn
-     * @date 2021/9/6 15:48
-     */
-    public Integer getCoverIdx(List<LinkedHashMap<String,String>> list) {
-        List<Long> minList = new ArrayList<>();
-        List<Long> maxList = new ArrayList<>();
-        long min=Long.MAX_VALUE,max=0;
-        for (Map<String, String> item : list) {
-            //将开始时间和结束时间全部存储
-            long minDate = DateUtil.parse(String.valueOf(item.get(Record.REC_START_TIME))).getTime();
-            long maxDate = DateUtil.parse(String.valueOf(item.get(Record.REC_END_TIME))).getTime();
-            minList.add(minDate);
-            maxList.add(maxDate);
-            if (minDate <= min) {
-                min = minDate; //时间最小值
-            }
-            if (maxDate >= max) {
-                max = maxDate; //时间最大值
-            }
-        }
-        //最小、最大时间值的集合,两集合交集为最长段
-        Set<Integer> minIndex=new HashSet<>(),maxIndex=new HashSet<>();
-        for (int i = 0; i < minList.size(); i++) {
-            if (min == minList.get(i)) {
-                minIndex.add(i+1);
-            }
-            if (max == maxList.get(i)) {
-                maxIndex.add(i+1);
-            }
-        }
-        minIndex.retainAll(maxIndex);
-        int index = 0;
-        if (!minIndex.isEmpty()) {
-            index = minIndex.iterator().next();
-        }
-        return index - 1;
-    }
 }
