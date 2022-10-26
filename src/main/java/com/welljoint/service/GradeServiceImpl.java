@@ -36,7 +36,8 @@ public class GradeServiceImpl implements GradeService {
     private String procEarlyName;
 
     public String makeWavFile(String siteID, String interactionID, String extension, Date startTime) {
-        String wav = CommonUtil.endsWithBar(wavPath) + interactionID + "mp3";
+        String format = ".wav";
+        String wav = CommonUtil.endsWithBar(wavPath) + interactionID + format;
         boolean exist = FileUtil.exist(wav);
         if (exist) {
             return wav;
@@ -66,7 +67,7 @@ public class GradeServiceImpl implements GradeService {
                 LinkedHashMap<String, String> record = nmfList.get(0);
                 String id = record.get(Record.ID);
                 String pathName = record.get(Record.PATH_NAME);
-                String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + ".wav"; //最终输出文件完整路径
+                String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + format; //最终输出文件完整路径
 
                 if (nmfList.size() == 1) {
                     log.info("录音ID:" + id + "共1段,无需拼接");
@@ -80,7 +81,7 @@ public class GradeServiceImpl implements GradeService {
                     //转码
                     String offset = String.valueOf(record.get(Record.CUT_OFFSET));
                     String duration = String.valueOf(record.get(Record.CUT_DURATION));
-                    int flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration);
+                    int flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration, format);
                     if (flag==1) {
                         log.info("转码成功,录音:" + id + ",保存至" + wavFullPath);
                     }else if(flag==0){
@@ -102,10 +103,10 @@ public class GradeServiceImpl implements GradeService {
                         File srcFile = new File(StrUtil.isNotBlank(srcPath) ? srcPath.replaceAll("\\\\", "/") : srcPath);
                         FileUtil.copy(srcFile, FileUtil.file(nmfFullPath), true);
                         log.info("录音" + id + "从" + srcPath + "拷贝至" + nmfFullPath);
-                        String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + ".wav";
+                        String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + format;
                         String offset = String.valueOf(part.get(Record.CUT_OFFSET));
                         String duration = String.valueOf(part.get(Record.CUT_DURATION));
-                        int flag = execTranscodeCmd(nmfFullPath, outPath, offset, duration);
+                        int flag = execTranscodeCmd(nmfFullPath, outPath, offset, duration, format);
                         if (flag==1) {
                             wavNameList.add(outPath);
                             log.info("转码成功待拼接,录音:" + outPath);
@@ -135,7 +136,7 @@ public class GradeServiceImpl implements GradeService {
                     }
 
                 }
-                return id + ".wav";
+                return id + format;
             } else {
                 log.info("存储过程返回为空,没有待转码录音");
             }
@@ -159,11 +160,12 @@ public class GradeServiceImpl implements GradeService {
      * @param destPath 目标路径
      * @param offset 时间偏移量
      * @param duration 持续时长
+     * @param format 后缀格式
      * @return java.lang.Integer -1失败 0放弃 1成功
      * @author cyjjohn
-     * @date 2022-8-17 11:14:53
+     * @date 2022-10-25 11:00:53
      */
-    public Integer execTranscodeCmd(String srcPath,String destPath, String offset, String duration) {
+    public Integer execTranscodeCmd(String srcPath,String destPath, String offset, String duration, String format) {
         String result;
         String fileName = srcPath.substring(0, srcPath.lastIndexOf("."));
         //.nmf 为nice录音文件  输出左右g729声道录音
@@ -175,11 +177,11 @@ public class GradeServiceImpl implements GradeService {
             return -1;
         }
         //左右声道g729转wav
-        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_C.g729 " + fileName + "_C.wav";
+        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_C.g729 " + fileName + "_C" + format;
         result = RuntimeUtil.execForStr(cmd);
         log.info(cmd);
         log.info(result);
-        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_S.g729 " + fileName + "_S.wav";
+        cmd = "tool/ffmpeg -y -acodec g729 -f g729 -i " + fileName + "_S.g729 " + fileName + "_S" + format;
         result = RuntimeUtil.execForStr(cmd);
         log.info(cmd);
         log.info(result);
@@ -188,7 +190,7 @@ public class GradeServiceImpl implements GradeService {
             int offsetInt = Integer.parseInt(offset);
             int durationInt = Integer.parseInt(duration);
             //读取wav时长
-            cmd = "tool/ffmpeg -i " + fileName + "_C.wav -hide_banner";
+            cmd = "tool/ffmpeg -i " + fileName + "_C" + format + " -hide_banner";
             result = RuntimeUtil.execForStr(cmd);
             String reg = "Duration:(.*?)\\.";
             Pattern p = Pattern.compile(reg);
@@ -202,11 +204,11 @@ public class GradeServiceImpl implements GradeService {
                 String durationTime = DateUtil.secondToTime(durationInt);
                 //修改完整wav文件名,让输出的片段wav与原本流程的相同
                 log.info("录音:" + fileName + "开始切割");
-                String originNameC = fileName + "_C.wav";
-                String tmpNameC = fileName + "_C_TMP.wav";
+                String originNameC = fileName + "_C" + format;
+                String tmpNameC = fileName + "_C_TMP" + format;
                 FileUtil.rename(FileUtil.file(originNameC), tmpNameC, true);
-                String originNameS = fileName + "_S.wav";
-                String tmpNameS = fileName + "_S_TMP.wav";
+                String originNameS = fileName + "_S" + format;
+                String tmpNameS = fileName + "_S_TMP" + format;
                 FileUtil.rename(FileUtil.file(originNameS), tmpNameS, true);
                 //ffmpeg.exe -y -i 1.mp3 -acodec copy -ss 00:01:04 -t 00:00:30 output.mp3
                 cmd = "tool/ffmpeg -y -i " + tmpNameC + " -acodec copy -ss " + startTime + " -t " + durationTime + " " + originNameC;
@@ -221,15 +223,15 @@ public class GradeServiceImpl implements GradeService {
                 FileUtil.del(tmpNameS);
                 //合并左右声道
                 FileUtil.mkdir(destPath.substring(0, destPath.lastIndexOf("/")));
-                cmd = "tool/ffmpeg -y -i " + fileName + "_S.wav -i " + fileName + "_C.wav -filter_complex amovie=" + fileName + "_S.wav[l];amovie=" + fileName + "_C.wav[r];[l][r]amerge " + destPath;
+                cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + " -filter_complex amix=inputs=2:duration=longest " + destPath;
                 log.info(cmd);
                 result = RuntimeUtil.execForStr(cmd);
                 log.info(result);
                 //清理文件
                 FileUtil.del(fileName + "_C.g729");
                 FileUtil.del(fileName + "_S.g729");
-                FileUtil.del(fileName + "_C.wav");
-                FileUtil.del(fileName + "_S.wav");
+                FileUtil.del(fileName + "_C" + format);
+                FileUtil.del(fileName + "_S" + format);
                 if (result.trim().endsWith("%")) { //成功时以%结尾
                     return 1;
                 }else{
@@ -239,15 +241,15 @@ public class GradeServiceImpl implements GradeService {
             } else if (offsetInt == 0 && durationInt == 0 && maxSecond > 0) {
                 //合并左右声道
                 FileUtil.mkdir(destPath.substring(0, destPath.lastIndexOf("/")));
-                cmd = "tool/ffmpeg -y -i " + fileName + "_S.wav -i " + fileName + "_C.wav -filter_complex amovie=" + fileName + "_S.wav[l];amovie=" + fileName + "_C.wav[r];[l][r]amerge " + destPath;
+                cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + " -filter_complex amix=inputs=2:duration=longest " + destPath;
                 log.info(cmd);
                 result = RuntimeUtil.execForStr(cmd);
                 log.info(result);
                 //清理文件
                 FileUtil.del(fileName + "_C.g729");
                 FileUtil.del(fileName + "_S.g729");
-                FileUtil.del(fileName + "_C.wav");
-                FileUtil.del(fileName + "_S.wav");
+                FileUtil.del(fileName + "_C" + format);
+                FileUtil.del(fileName + "_S" + format);
                 if (result.trim().endsWith("%")) { //成功时以%结尾
                     return 1;
                 } else {
@@ -262,45 +264,4 @@ public class GradeServiceImpl implements GradeService {
         return -1;
     }
 
-    /**
-     * @description 获取单条覆盖全部时长的特殊录音的索引(下标从0开始),当不存在单条覆盖全部时返回-1
-     * @param list 完整录音的片段集合
-     * @return java.lang.Integer
-     * @author cyjjohn
-     * @date 2021/9/6 15:48
-     */
-    public Integer getCoverIdx(List<LinkedHashMap<String,String>> list) {
-        List<Long> minList = new ArrayList<>();
-        List<Long> maxList = new ArrayList<>();
-        long min=Long.MAX_VALUE,max=0;
-        for (Map<String, String> item : list) {
-            //将开始时间和结束时间全部存储
-            long minDate = DateUtil.parse(String.valueOf(item.get(Record.REC_START_TIME))).getTime();
-            long maxDate = DateUtil.parse(String.valueOf(item.get(Record.REC_END_TIME))).getTime();
-            minList.add(minDate);
-            maxList.add(maxDate);
-            if (minDate <= min) {
-                min = minDate; //时间最小值
-            }
-            if (maxDate >= max) {
-                max = maxDate; //时间最大值
-            }
-        }
-        //最小、最大时间值的集合,两集合交集为最长段
-        Set<Integer> minIndex=new HashSet<>(),maxIndex=new HashSet<>();
-        for (int i = 0; i < minList.size(); i++) {
-            if (min == minList.get(i)) {
-                minIndex.add(i+1);
-            }
-            if (max == maxList.get(i)) {
-                maxIndex.add(i+1);
-            }
-        }
-        minIndex.retainAll(maxIndex);
-        int index = 0;
-        if (!minIndex.isEmpty()) {
-            index = minIndex.iterator().next();
-        }
-        return index - 1;
-    }
 }
