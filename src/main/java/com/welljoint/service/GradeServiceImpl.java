@@ -40,6 +40,10 @@ public class GradeServiceImpl implements GradeService {
     @Override
     public void count(String jsonStr) {
         JSONObject jsonObject = JSONUtil.parseObj(jsonStr);
+        Long userId = jsonObject.getLong("UserID");
+        if (userId == null) {
+            return;
+        }
         String interactionId = jsonObject.getStr("InteractionID");
         if (StrUtil.isBlank(interactionId)) {
             log.info("调用spCoachSetCount计数");
@@ -77,8 +81,24 @@ public class GradeServiceImpl implements GradeService {
     public String makeFile(String jsonStr) {
         JSONObject jsonObject = JSONUtil.parseObj(jsonStr);
         String interactionId = jsonObject.getStr("InteractionID");
+        if (interactionId==null) {
+            jsonObject.remove("InteractionID");
+        }
         String contactId = jsonObject.getStr("ContactID");
         String format = jsonObject.getStr("Format");
+        if (StrUtil.isBlank(format)) {
+            format = ".mp3";
+        }
+        Long userId = jsonObject.getLong("UserID");
+        if (userId == null) {
+            userId = 1L;
+            jsonObject.set("UserID",userId);
+        }
+        Integer sId = jsonObject.getInt("SID");
+        if (sId == null) {
+            sId = 1;
+            jsonObject.set("SID", sId);
+        }
 
         //判断流水号是否存在
         String wav = "";
@@ -103,86 +123,90 @@ public class GradeServiceImpl implements GradeService {
         try {
             //查询数据库 得到待转码录音列表
             conn = Db.use().getConnection();
-            String[] params = {jsonStr};
+            String[] params = {JSONUtil.toJsonStr(jsonObject)};
             Map<String, Integer> map = new LinkedHashMap<>();
             map.put("out_Status", Types.INTEGER);
             map.put("out_Content", Types.VARCHAR);
             List<Object> result = CommonUtil.getResult(conn, procName, params, map);
             int lastIndex = result.size() - 1; //查询结果集固定在最后，前面为出参
-            List<LinkedHashMap<String, String>> recordList = (List<LinkedHashMap<String, String>>) result.get(lastIndex);
-            log.info(String.valueOf(result.get(lastIndex)));
-            if (null != recordList && recordList.size() > 0) {
-                log.info("待转码分段录音总数:" + recordList.size());
-                LinkedHashMap<String, String> record = recordList.get(0);
-                String pathName = CommonUtil.startsWithBar(record.get(Record.PATH_NAME));
-                String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + format; //最终输出文件完整路径
+            if (result.size() == 3) {
+                List<LinkedHashMap<String, String>> recordList = (List<LinkedHashMap<String, String>>) result.get(lastIndex);
+                log.info(String.valueOf(result.get(lastIndex)));
+                if (null != recordList && recordList.size() > 0) {
+                    log.info("待转码分段录音总数:" + recordList.size());
+                    LinkedHashMap<String, String> record = recordList.get(0);
+                    String pathName = CommonUtil.startsWithBar(record.get(Record.PATH_NAME));
+                    String wavFullPath = CommonUtil.endsWithBar(wavPath) + id + format; //最终输出文件完整路径
 
-                if (recordList.size() == 1) {
-                    log.info("录音ID:" + id + "共1段,无需拼接");
-                    //拷贝挂载盘录音到本地
-                    String fileName = record.get(Record.FILE_NAME);
-                    String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
-                    String originFullPath = CommonUtil.endsWithBar(originPath) + id + suffix;
-                    File srcFile = new File(srcPath);
-                    FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
-                    log.info("录音" + id + "从" + srcPath + "拷贝至" + originFullPath);
-                    //转码
-                    String offset = String.valueOf(record.get(Record.CUT_OFFSET));
-                    String duration = String.valueOf(record.get(Record.CUT_DURATION));
-                    Boolean flag = execTranscodeCmd(originFullPath, wavFullPath, offset, duration, format);
-                    if (flag) {
-                        log.info("转码成功,录音:" + id + ",保存至" + wavFullPath);
-                    }else{
-                        return "转码失败,录音:" + id;
-                    }
-                    FileUtil.del(originFullPath); //清理保存到本地的原始文件
-                } else {
-                    log.info("录音ID:" + id + "共" + recordList.size() + "段,需拼接");
-                    int count = 0; //计数
-                    List<String> wavNameList = new ArrayList<>();
-
-                    for (LinkedHashMap<String, String> part : recordList) { //循环内为需拼接的一通完整录音
-                        count++;
-                        String fileName = part.get(Record.FILE_NAME);
+                    if (recordList.size() == 1) {
+                        log.info("录音ID:" + id + "共1段,无需拼接");
+                        //拷贝挂载盘录音到本地
+                        String fileName = record.get(Record.FILE_NAME);
                         String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
-                        String originFullPath = CommonUtil.endsWithBar(originPath) + id + "_" + count  + suffix;
+                        String originFullPath = CommonUtil.endsWithBar(originPath) + id + suffix;
                         File srcFile = new File(srcPath);
                         FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
                         log.info("录音" + id + "从" + srcPath + "拷贝至" + originFullPath);
-                        String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + format;
-                        String offset = String.valueOf(part.get(Record.CUT_OFFSET));
-                        String duration = String.valueOf(part.get(Record.CUT_DURATION));
-                        boolean flag = execTranscodeCmd(originFullPath, outPath, offset, duration, format);
+                        //转码
+                        String offset = String.valueOf(record.get(Record.CUT_OFFSET));
+                        String duration = String.valueOf(record.get(Record.CUT_DURATION));
+                        Boolean flag = execTranscodeCmd(originFullPath, wavFullPath, offset, duration, format);
                         if (flag) {
-                            wavNameList.add(outPath);
-                            log.info("转码成功待拼接,录音:" + outPath);
+                            log.info("转码成功,录音:" + id + ",保存至" + wavFullPath);
                         }else{
                             return "转码失败,录音:" + id;
                         }
                         FileUtil.del(originFullPath); //清理保存到本地的原始文件
-                    }
+                    } else {
+                        log.info("录音ID:" + id + "共" + recordList.size() + "段,需拼接");
+                        int count = 0; //计数
+                        List<String> wavNameList = new ArrayList<>();
 
-                    //拼接命令
-                    StringBuilder cmd = new StringBuilder("tool/CombineWave " + wavFullPath);
-                    for (String wavName : wavNameList) {
-                        cmd.append(" ").append(wavName);
-                    }
-                    log.info(cmd.toString());
-                    String res = RuntimeUtil.execForStr(cmd.toString());
-                    if (StrUtil.isBlank(res)) {
-                        for (String wavName : wavNameList) {
-                            FileUtil.del(wavName);
+                        for (LinkedHashMap<String, String> part : recordList) { //循环内为需拼接的一通完整录音
+                            count++;
+                            String fileName = part.get(Record.FILE_NAME);
+                            String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
+                            String originFullPath = CommonUtil.endsWithBar(originPath) + id + "_" + count  + suffix;
+                            File srcFile = new File(srcPath);
+                            FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
+                            log.info("录音" + id + "从" + srcPath + "拷贝至" + originFullPath);
+                            String outPath = CommonUtil.endsWithBar(wavPath) + id + "_" + count + format;
+                            String offset = String.valueOf(part.get(Record.CUT_OFFSET));
+                            String duration = String.valueOf(part.get(Record.CUT_DURATION));
+                            boolean flag = execTranscodeCmd(originFullPath, outPath, offset, duration, format);
+                            if (flag) {
+                                wavNameList.add(outPath);
+                                log.info("转码成功待拼接,录音:" + outPath);
+                            }else{
+                                return "转码失败,录音:" + id;
+                            }
+                            FileUtil.del(originFullPath); //清理保存到本地的原始文件
                         }
-                        log.info("拼接成功,录音ID:" + id + ",输出至" + wavFullPath);
-                    }else{
-                        log.info(res);
-                        return "已转码,但拼接失败,录音ID:" + id;
-                    }
 
+                        //拼接命令
+                        StringBuilder cmd = new StringBuilder("tool/CombineWave " + wavFullPath);
+                        for (String wavName : wavNameList) {
+                            cmd.append(" ").append(wavName);
+                        }
+                        log.info(cmd.toString());
+                        String res = RuntimeUtil.execForStr(cmd.toString());
+                        if (StrUtil.isBlank(res)) {
+                            for (String wavName : wavNameList) {
+                                FileUtil.del(wavName);
+                            }
+                            log.info("拼接成功,录音ID:" + id + ",输出至" + wavFullPath);
+                        }else{
+                            log.info(res);
+                            return "已转码,但拼接失败,录音ID:" + id;
+                        }
+
+                    }
+                    return id + format;
+                } else {
+                    log.info("存储过程返回为空,没有待转码录音");
                 }
-                return id + format;
             } else {
-                log.info("存储过程返回为空,没有待转码录音");
+                log.info(result.get(1).toString());
             }
         } catch (SQLException e) {
             log.info(e.getMessage());
