@@ -71,7 +71,7 @@ public class ApiController {
         File wavFile = new File(CommonUtil.endsWithBar(wavPath) + wavName);
         if (!wavFile.exists()) {
             result.put("code", 0);
-            result.put("msg", "路径：" + wavName + "的文件名不存在");
+            result.put("msg", "录音：" + wavName + "文件不存在");
             return result;
         }
         String range = request.getHeader("Range");

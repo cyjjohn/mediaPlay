@@ -40,7 +40,7 @@ public class GradeServiceImpl implements GradeService {
         String wav = CommonUtil.endsWithBar(wavPath) + interactionID + format;
         boolean exist = FileUtil.exist(wav);
         if (exist) {
-            return wav;
+            return interactionID + format;
         }
 
         Connection conn = null;
