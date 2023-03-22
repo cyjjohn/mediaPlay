@@ -241,7 +241,7 @@ public class GradeServiceImpl implements GradeService {
             } else if (offsetInt == 0 && durationInt == 0 && maxSecond > 0) {
                 //合并左右声道
                 FileUtil.mkdir(destPath.substring(0, destPath.lastIndexOf("/")));
-                cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + "-ac 2 -filter_complex amix=inputs=2:duration=longest " + destPath;
+                cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + " -ac 2 -filter_complex amix=inputs=2:duration=longest " + destPath;
                 log.info(cmd);
                 result = RuntimeUtil.execForStr(cmd);
                 log.info(result);
