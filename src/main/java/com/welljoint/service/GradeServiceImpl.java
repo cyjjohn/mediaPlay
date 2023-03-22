@@ -82,6 +82,7 @@ public class GradeServiceImpl implements GradeService {
                     String offset = String.valueOf(record.get(Record.CUT_OFFSET));
                     String duration = String.valueOf(record.get(Record.CUT_DURATION));
                     int flag = execTranscodeCmd(nmfFullPath, wavFullPath, offset, duration, format);
+                    FileUtil.del(nmfFullPath); //清理nmf文件
                     if (flag==1) {
                         log.info("转码成功,录音:" + id + ",保存至" + wavFullPath);
                     }else if(flag==0){
@@ -89,7 +90,6 @@ public class GradeServiceImpl implements GradeService {
                     }else if(flag==-1){
                         return "转码失败,录音:" + id;
                     }
-                    FileUtil.del(nmfFullPath); //清理nmf文件
                 } else {
                     log.info("录音ID:" + id + "共" + nmfList.size() + "段,需拼接");
                     int count = 0; //计数
@@ -107,6 +107,7 @@ public class GradeServiceImpl implements GradeService {
                         String offset = String.valueOf(part.get(Record.CUT_OFFSET));
                         String duration = String.valueOf(part.get(Record.CUT_DURATION));
                         int flag = execTranscodeCmd(nmfFullPath, outPath, offset, duration, format);
+                        FileUtil.del(nmfFullPath); //清理nmf文件
                         if (flag==1) {
                             wavNameList.add(outPath);
                             log.info("转码成功待拼接,录音:" + outPath);
@@ -115,7 +116,6 @@ public class GradeServiceImpl implements GradeService {
                         }else if(flag==-1){
                             return "转码失败,录音:" + id;
                         }
-                        FileUtil.del(nmfFullPath); //清理nmf文件
                     }
 
                     //拼接命令
@@ -223,7 +223,7 @@ public class GradeServiceImpl implements GradeService {
                 FileUtil.del(tmpNameS);
                 //合并左右声道
                 FileUtil.mkdir(destPath.substring(0, destPath.lastIndexOf("/")));
-                cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + " -filter_complex amix=inputs=2:duration=longest " + destPath;
+                cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + "-ac2 -filter_complex amix=inputs=2:duration=longest " + destPath;
                 log.info(cmd);
                 result = RuntimeUtil.execForStr(cmd);
                 log.info(result);
@@ -241,7 +241,7 @@ public class GradeServiceImpl implements GradeService {
             } else if (offsetInt == 0 && durationInt == 0 && maxSecond > 0) {
                 //合并左右声道
                 FileUtil.mkdir(destPath.substring(0, destPath.lastIndexOf("/")));
-                cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + " -filter_complex amix=inputs=2:duration=longest " + destPath;
+                cmd = "tool/ffmpeg -y -i " + fileName + "_S" + format + " -i " + fileName + "_C" + format + "-ac2 -filter_complex amix=inputs=2:duration=longest " + destPath;
                 log.info(cmd);
                 result = RuntimeUtil.execForStr(cmd);
                 log.info(result);
