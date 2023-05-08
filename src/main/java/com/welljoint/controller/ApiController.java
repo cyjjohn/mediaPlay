@@ -2,6 +2,7 @@ package com.welljoint.controller;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.StrUtil;
 import com.welljoint.CommonUtil;
 import com.welljoint.MediaResourceHttpRequestHandler;
 import com.welljoint.bean.Payload;
@@ -189,6 +190,9 @@ public class ApiController {
     @GetMapping({"/wavUrl"})
     @ResponseBody
     public String getWavUrl(@RequestParam("SiteID") String SiteID, @RequestParam("InteractionID") String InteractionID, @RequestParam("Extension") String Extension, @RequestParam("StartTime") String StartTime) {
+        if (StrUtil.isBlank(InteractionID) && StrUtil.isBlank(Extension)) {
+            return domain;
+        }
         String voiceName = gradeService.makeWavFile(SiteID, InteractionID, Extension, DateUtil.parse(StartTime, "yyyy-MM-dd HH:mm:ss"));
         return domain + voiceName;
     }
@@ -196,6 +200,9 @@ public class ApiController {
     @PostMapping({"/wavUrl"})
     @ResponseBody
     public String wavUrl(@RequestBody Payload payload) {
+        if (StrUtil.isBlank(payload.getInteractionID()) && StrUtil.isBlank(payload.getExtension())) {
+            return domain;
+        }
         log.info(payload.toString());
         String voiceName = gradeService.makeWavFile(payload.getSiteID(), payload.getInteractionID(), payload.getExtension(), DateUtil.parse(payload.getStartTime(), "yyyy-MM-dd HH:mm:ss"));
         return domain + voiceName;

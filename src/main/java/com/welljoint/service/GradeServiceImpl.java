@@ -167,7 +167,7 @@ public class GradeServiceImpl implements GradeService {
      */
     public Integer execTranscodeCmd(String srcPath,String destPath, String offset, String duration, String format) {
         String result;
-        String fileName = srcPath.substring(0, srcPath.lastIndexOf("."));
+        String fileName = srcPath.substring(0, srcPath.lastIndexOf("."))+"_"+System.currentTimeMillis();
         //.nmf 为nice录音文件  输出左右g729声道录音
         String cmd = "tool/nice/nmf2G729 " + srcPath + " " + fileName + "_C.g729 " + fileName + "_S.g729";
         result=RuntimeUtil.execForStr(cmd);
