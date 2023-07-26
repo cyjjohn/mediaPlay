@@ -241,12 +241,12 @@ public class GradeServiceImpl implements GradeService {
         switch (format) {
             case ".wav":
                 // ffmpeg -y -i in.aac -ar 8000 -ac 2 out.wav
-                cmd = "ffmpeg -y -i " + srcPath + " -ar 8000 -ac 2 " + destFullPath;
+                cmd = "tool/ffmpeg -y -i " + srcPath + " -ar 8000 -ac 2 " + destFullPath;
                 break;
             case ".mp3":
             default:
                 // ffmpeg -y -i in.aac -acodec libmp3lame -ar 8000 -ac 2 out.mp3
-                cmd = "ffmpeg -y -i " + srcPath + " -acodec libmp3lame -ar 8000 -ac 2 " + destFullPath;
+                cmd = "tool/ffmpeg -y -i " + srcPath + " -acodec libmp3lame -ar 8000 -ac 2 " + destFullPath;
                 break;
         }
         log.info(cmd);
@@ -259,7 +259,7 @@ public class GradeServiceImpl implements GradeService {
             int durationInt = Integer.parseInt(duration);
             if (offsetInt >= 0 && durationInt > 0) {
                 //读取wav时长
-                cmd = "ffmpeg -i " + destFullPath + " -hide_banner";
+                cmd = "tool/ffmpeg -i " + destFullPath + " -hide_banner";
                 result = RuntimeUtil.execForStr(cmd);
                 String reg = "Duration:(.*?)\\.";
                 Pattern p = Pattern.compile(reg);
@@ -276,7 +276,7 @@ public class GradeServiceImpl implements GradeService {
                     String tmpName = destFullPath.substring(0, destFullPath.lastIndexOf(".")) + "_tmp" + format;
                     FileUtil.rename(FileUtil.file(destFullPath), tmpName, true);
                     //ffmpeg.exe -y -i 1.mp3 -acodec copy -ss 00:01:04 -t 00:00:30 output.mp3
-                    cmd = "ffmpeg -y -i " + tmpName + " -acodec copy -ss " + startTime + " -t " + durationTime + " " + destFullPath;
+                    cmd = "tool/ffmpeg -y -i " + tmpName + " -acodec copy -ss " + startTime + " -t " + durationTime + " " + destFullPath;
                     result = RuntimeUtil.execForStr(cmd);
                     log.info(cmd);
                     log.info(result);
