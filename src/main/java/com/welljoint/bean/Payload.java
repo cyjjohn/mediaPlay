@@ -12,11 +12,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Payload {
-    private Long userId;
-    private Integer sId;
-    private String interactionId;
-    private String contactId;
+    private String area;
+    private String agentId;
     @JsonFormat(timezone = "GMT+8",pattern = "yyyy-MM-dd HH:mm:ss")
-    private String contactStartTime;
-    private String format;
+    private String beginTime;
 }

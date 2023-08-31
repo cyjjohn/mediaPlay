@@ -1,7 +1,9 @@
 package com.welljoint.controller;
 
+import cn.hutool.json.JSONUtil;
 import com.welljoint.CommonUtil;
 import com.welljoint.MediaResourceHttpRequestHandler;
+import com.welljoint.bean.Payload;
 import com.welljoint.service.GradeService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.catalina.connector.ClientAbortException;
@@ -132,10 +134,9 @@ public class ApiController {
 
     @PostMapping({"/wavUrl"})
     @ResponseBody
-    public String wavUrl(@RequestBody String jsonStr) {
-        log.info(jsonStr);
-        gradeService.count(jsonStr);
-        String voiceName = gradeService.makeFile(jsonStr);
+    public String wavUrl(@RequestBody Payload payload) {
+        log.info(JSONUtil.toJsonPrettyStr(payload));
+        String voiceName = gradeService.makeFile(payload);
         return domain + voiceName;
     }
 }
