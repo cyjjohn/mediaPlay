@@ -68,17 +68,15 @@ public class GradeServiceImpl implements GradeService {
                 String suffix = fileName.substring(fileName.lastIndexOf(".")).trim().toLowerCase();
                 String originFullPath = CommonUtil.endsWithBar(originPath) + id + suffix;
 
-                //根据原始文件后缀判断怎么转码
-                if (suffix.equals(".v3")) {
 
-                }else if(suffix.equals(".wav")){
-
-                }else {
-                    log.info("原始文件后缀:{},无法转码",suffix);
-                    return null;
+                String format = ".wav";
+                String outFileName = id + format;
+                String outFullPath = CommonUtil.endsWithBar(wavPath) + outFileName; //最终输出文件完整路径
+                //查询本地是否存在该录音
+                if (FileUtil.exist(outFullPath)) {
+                    log.info("存在本地文件,不进行转码:{}",outFileName);
+                    return outFileName;
                 }
-                String format = ".mp3";
-                String outFullPath = CommonUtil.endsWithBar(wavPath) + id + format; //最终输出文件完整路径
 
                 File srcFile = new File(srcPath);
                 FileUtil.copy(srcFile, FileUtil.file(originFullPath), true);
@@ -91,6 +89,7 @@ public class GradeServiceImpl implements GradeService {
                     return "转码失败,录音:" + id;
                 }
                 FileUtil.del(originFullPath); //清理保存到本地的原始文件
+                return outFileName;
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -111,6 +110,7 @@ public class GradeServiceImpl implements GradeService {
      * @date 2021/5/6 13:32
      */
     public Boolean execTranscodeCmd(String srcPath, String destPath,String suffix, String format) {
+        FileUtil.mkdir(destPath.substring(0, destPath.lastIndexOf("/")));
         String result;
 
         String destFullPath = destPath.substring(0, destPath.lastIndexOf('.')) + format;
