@@ -1,5 +1,7 @@
 package com.welljoint.service;
 
+import cn.hutool.core.date.DateField;
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.RuntimeUtil;
@@ -47,10 +49,11 @@ public class GradeServiceImpl implements GradeService {
                 .put("AgentID", agentId)
                 .put("Minutes", minutes)
                 .build();
+        int month = DateUtil.parse(beginTime).getField(DateField.MONTH) + 1;
         String sql = "select concat(AgentID,date_format(BeginTime,'%y%m%d%H%i%s')) as InteractionID\n" +
                 "\t,left(FileName,instr(FileName,'\\\\')-1) as PathName\n" +
                 "    ,replace(right(FileName,length(FileName)-instr(FileName,'\\\\')+1),'\\\\','/') as FileName\n" +
-                "from trecordinfo6\n" +
+                "from trecordinfo" + month + "\n" +
                 "where BeginTime between timestampadd(minute,-@Minutes,@BeginTime) \n" +
                 "and timestampadd(minute,@Minutes,@BeginTime)\n" +
                 "and AgentID=@AgentID\n" +
@@ -59,22 +62,21 @@ public class GradeServiceImpl implements GradeService {
         try {
             List<Entity> result = Db.use().query(sql, paramMap);
             for (Entity entity : result) {
-                String id= entity.getStr("InteractionID");
-                String pathName= entity.getStr("PathName");
-                String fileName= entity.getStr("FileName");
+                String id = entity.getStr("InteractionID");
+                String pathName = entity.getStr("PathName");
+                String fileName = entity.getStr("FileName");
 
                 //拷贝挂载盘录音到本地
-                String srcPath = CommonUtil.endsWithBar(pathName) + fileName;
+                String srcPath = CommonUtil.startsWithBar(CommonUtil.endsWithBar(pathName)) + fileName;
                 String suffix = fileName.substring(fileName.lastIndexOf(".")).trim().toLowerCase();
                 String originFullPath = CommonUtil.endsWithBar(originPath) + id + suffix;
 
-
-                String format = ".wav";
+                String format = ".mp3";
                 String outFileName = id + format;
                 String outFullPath = CommonUtil.endsWithBar(wavPath) + outFileName; //最终输出文件完整路径
                 //查询本地是否存在该录音
                 if (FileUtil.exist(outFullPath)) {
-                    log.info("存在本地文件,不进行转码:{}",outFileName);
+                    log.info("存在本地文件,不进行转码:{}", outFileName);
                     return outFileName;
                 }
 
@@ -109,21 +111,12 @@ public class GradeServiceImpl implements GradeService {
      * @author cyjjohn
      * @date 2021/5/6 13:32
      */
-    public Boolean execTranscodeCmd(String srcPath, String destPath,String suffix, String format) {
+    public Boolean execTranscodeCmd(String srcPath, String destPath, String suffix, String format) {
         FileUtil.mkdir(destPath.substring(0, destPath.lastIndexOf("/")));
         String result;
 
         String destFullPath = destPath.substring(0, destPath.lastIndexOf('.')) + format;
-        String cmd = "";
-        switch (suffix){
-            case ".v3":
-                cmd = "tool/ffmpeg -y -acodec adpcm_ima_oki -f s16le -ar 6000 -i ";
-                break;
-            case ".mp3":
-            default:
-                cmd = "tool/ffmpeg -y -i ";
-                break;
-        }
+        String cmd = "tool/ffmpeg -y -i ";
         switch (format) {
             case ".wav":
                 // ffmpeg -y -i in.aac -ar 8000 -ac 2 out.wav

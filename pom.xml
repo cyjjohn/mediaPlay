@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.welljoint</groupId>
-  <artifactId>mediaPlay</artifactId>
+  <artifactId>huaweiPlay</artifactId>
   <version>1.0-SNAPSHOT</version>
 
   <name>mediaPlay</name>
