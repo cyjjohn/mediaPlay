@@ -120,12 +120,12 @@ public class GradeServiceImpl implements GradeService {
         switch (format) {
             case ".wav":
                 // ffmpeg -y -i in.aac -ar 8000 -ac 2 out.wav
-                cmd += srcPath + " -ar 8000 -ac 2 " + destFullPath;
+                cmd += srcPath + " -ar 8000 -ac 1 " + destFullPath;
                 break;
             case ".mp3":
             default:
                 // ffmpeg -y -i in.aac -acodec libmp3lame -ar 8000 -ac 2 out.mp3
-                cmd += srcPath + " -acodec libmp3lame -ar 8000 -ac 2 " + destFullPath;
+                cmd += srcPath + " -acodec libmp3lame -ar 8000 -ac 1 " + destFullPath;
                 break;
         }
 
