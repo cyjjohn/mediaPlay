@@ -1,5 +1,7 @@
 package com.welljoint.service;
 
+import cn.hutool.json.JSONObject;
+
 import java.util.Date;
 
 public interface GradeService {
@@ -8,6 +10,6 @@ public interface GradeService {
   // 计数
   void count(String jsonStr);
 
-  String makeFile(String str);
+  String makeFile(JSONObject json);
 
 }

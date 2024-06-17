@@ -3,6 +3,8 @@ package com.welljoint;
 import lombok.extern.slf4j.Slf4j;
 
 import java.sql.*;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -94,7 +96,7 @@ public class CommonUtil {
                     int columnCount = rsmd.getColumnCount();
                     Map<String, Object> resultMap = new LinkedHashMap<>();
                     for (int i = 0; i < columnCount; i++) {
-                        resultMap.put(rsmd.getColumnName(i + 1), rs.getObject(i + 1) instanceof Long ? String.valueOf(rs.getObject(i + 1)) : rs.getObject(i + 1));
+                        resultMap.put(rsmd.getColumnName(i + 1), formatValue(rs,i+1));
                     }
                     resultMapList.add(resultMap);
                 }
@@ -182,7 +184,7 @@ public class CommonUtil {
                     int columnCount = rsmd.getColumnCount();
                     Map<String, Object> resultMap = new LinkedHashMap<>();
                     for (int i = 0; i < columnCount; i++) {
-                        resultMap.put(rsmd.getColumnName(i + 1), rs.getObject(i + 1) instanceof Long ? String.valueOf(rs.getObject(i + 1)) : rs.getObject(i + 1));
+                        resultMap.put(rsmd.getColumnName(i + 1), formatValue(rs,i+1));
                     }
                     resultMapList.add(resultMap);
                 }
@@ -204,5 +206,24 @@ public class CommonUtil {
             }
         }
         return result;
+    }
+
+    /**
+     * mysql驱动会将dateTime转为LocalDateTime类
+     * 对LocalDateTime类型进行格式化
+     * @param rs 结果集
+     * @param i 下标索引
+     * @return Object
+     * @throws SQLException
+     */
+    public static Object formatValue(ResultSet rs,int i) throws SQLException {
+        Object obj = rs.getObject(i);
+        if (obj instanceof java.sql.Date || obj instanceof LocalDateTime){
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            return sdf.format(rs.getTimestamp(i));
+        } else if (obj instanceof Long) {
+            return String.valueOf(rs.getObject(i));
+        }
+        return obj;
     }
 }

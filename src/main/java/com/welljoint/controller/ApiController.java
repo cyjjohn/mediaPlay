@@ -1,7 +1,12 @@
 package com.welljoint.controller;
 
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.welljoint.CommonUtil;
 import com.welljoint.MediaResourceHttpRequestHandler;
+import com.welljoint.constant.AudioFormat;
+import com.welljoint.constant.AudioParam;
 import com.welljoint.service.GradeService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.catalina.connector.ClientAbortException;
@@ -36,14 +41,14 @@ public class ApiController {
     @Value("${server.domain}")
     private String domain;
 
-    @Value("${prefix.wav}")
-    private String wavPath;
+    @Value("${prefix.audio}")
+    private String audioPath;
 
     @RequestMapping({"/playWav"})
-    public Map<String, Object> playWav(HttpServletRequest request, HttpServletResponse response, @RequestParam("wavName") String wavName) {
+    public Map<String, Object> playAudio(HttpServletRequest request, HttpServletResponse response, @RequestParam("wavName") String wavName) {
         Map<String, Object> result = new HashMap<>();
 
-        File wavFile = new File(CommonUtil.endsWithBar(wavPath) + wavName);
+        File wavFile = new File(CommonUtil.endsWithBar(audioPath) + wavName);
         if (!wavFile.exists()) {
             result.put("code", 0);
             result.put("msg", "路径：" + wavName + "的文件名不存在");
@@ -132,10 +137,15 @@ public class ApiController {
 
     @PostMapping({"/wavUrl"})
     @ResponseBody
-    public String wavUrl(@RequestBody String jsonStr) {
+    public String audioUrl(@RequestBody String jsonStr) {
         log.info(jsonStr);
-        gradeService.count(jsonStr);
-        String voiceName = gradeService.makeFile(jsonStr);
+//        gradeService.count(jsonStr);
+        JSONObject jsonObject = JSONUtil.parseObj(jsonStr);
+        String format = jsonObject.getStr(AudioParam.FORMAT);
+        if (StrUtil.isBlank(format)) {
+            jsonObject.set(AudioParam.FORMAT, AudioFormat.MP3.getFileExtension());
+        }
+        String voiceName = gradeService.makeFile(jsonObject);
         return domain + voiceName;
     }
 }

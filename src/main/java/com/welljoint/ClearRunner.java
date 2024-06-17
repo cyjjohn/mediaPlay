@@ -1,6 +1,8 @@
 package com.welljoint;
 
 import cn.hutool.core.io.FileUtil;
+import com.welljoint.constant.AudioFormat;
+import com.welljoint.constant.AudioParam;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -22,8 +24,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 public class ClearRunner extends TimerTask implements CommandLineRunner {
-    @Value("${prefix.wav}")
-    private String wavPath;
+    @Value("${prefix.audio}")
+    private String audioPath;
 
     @Value("${schedule.time}")
     private Integer hour;
@@ -42,31 +44,33 @@ public class ClearRunner extends TimerTask implements CommandLineRunner {
 
     @Override
     public void run() {
-        log.info("定时清理运行中:正在遍历删除文件夹" + wavPath + "下的录音文件");
-        File dir = FileUtil.file(wavPath);
+        log.info("定时清理运行中:正在遍历删除文件夹" + audioPath + "下的录音文件");
+        File dir = FileUtil.file(audioPath);
         long usableSpace = dir.getUsableSpace();
         long totalSpace = dir.getTotalSpace();
         double overSize = (totalSpace - usableSpace) - totalSpace * percent / 100.0;
-        DecimalFormat df  = new DecimalFormat("###.00");
+        DecimalFormat df = new DecimalFormat("###.00");
         if (overSize > 0) {
-            log.info("当前容量超出" + percent + "%有" +df.format(overSize / 1024 / 1024) + "MB");
-            List<File> fileList = FileUtil.loopFiles(wavPath, pathname -> pathname.getName().endsWith(".wav"))
-                    .stream().sorted(Comparator.comparingLong(File::lastModified)).collect(Collectors.toList());
+            log.info("当前容量超出" + percent + "%有" + df.format(overSize / 1024 / 1024) + "MB");
+            List<File> fileList = FileUtil.loopFiles(audioPath, pathname -> {
+                String name = pathname.getName().toLowerCase();
+                return name.endsWith(".v3") || name.endsWith(".nmf") || name.endsWith(".wav") || name.endsWith(".mp3") || name.endsWith(".aac");
+            }).stream().sorted(Comparator.comparingLong(File::lastModified)).collect(Collectors.toList());
             double count = 0;
             for (File file : fileList) {
                 count += file.length();
                 boolean flag = FileUtil.del(file);
                 if (flag) {
                     log.info("定时清理运行中:" + file.getName() + "删除成功");
-                } else{
+                } else {
                     log.info("定时清理运行中:" + file.getName() + "删除失败");
                 }
                 if (count > overSize) {
                     break;
                 }
             }
-        }else{
-            log.info("当前容量距"+percent+"%还有" + df.format((-overSize) / 1024 / 1024) + "MB可用,不执行清理");
+        } else {
+            log.info("当前容量距" + percent + "%还有" + df.format((-overSize) / 1024 / 1024) + "MB可用,不执行清理");
         }
         log.info("定时清理运行结束");
     }
